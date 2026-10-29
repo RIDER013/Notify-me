@@ -1,0 +1,6 @@
+{
+  "name": "NotifyVoice AI",
+  "description": "Smart notification announcer and translator that reads incoming notifications aloud in English with Gemini AI summaries and voice alerts, working seamlessly across mobile and desktop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
