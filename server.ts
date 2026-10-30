@@ -19,21 +19,6 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
-  const isProduction = process.env.NODE_ENV === 'production';
-  const __dirname = path.resolve();
-
-  let vite: any;
-  if (!isProduction) {
-    process.env.DISABLE_HMR = 'true';
-    vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-  }
-
   // API endpoint for AI notification processing & translation into spoken English
   app.post('/api/translate-and-summarize', async (req, res) => {
     try {
@@ -43,25 +28,28 @@ async function startServer() {
         return res.status(400).json({ error: 'Notification title or body is required' });
       }
 
-      const prompt = `You are NotifyVoice AI, an intelligent smartphone notification reader and translator.
+      const prompt = `You are NotifyVoice AI, an intelligent smartphone notification reader.
 An incoming notification arrived on the user's phone from app "${appName || 'System'}".
 Original Title: "${title || ''}"
 Original Body: "${body || ''}"
 Original Language: "${originalLanguage || 'auto-detected'}"
 
 Your task:
-1. Understand the notification content regardless of language (Marathi, Hindi, Spanish, etc.).
-2. Translate and summarize it into a natural, polite, and clear English spoken announcement sentence that is pleasant to hear out loud (e.g., "You have a WhatsApp message from Rahul: Are you coming tonight?").
-3. Also provide a category tag (e.g., "Chat", "Call", "Email", "Finance", "Alert", "Social").
-4. Rate urgency (High, Medium, Low).
+1. Identify the sender's name (e.g. "Ritesh"). If there is no person name or it is a phone number, extract the last 4 digits (e.g. "number ending in 4821"). If completely unknown, use "${appName}".
+2. Construct the spoken announcement using ONE of these exact formats:
+   - "Hello sir, you have a new message from [Sender] on ${appName}."
+   - "Hello sir, [Sender] has sent you a message on ${appName}."
+   - "Excuse me sir, [Sender] just messaged you on ${appName}."
+   - "Hello sir, [Sender] has sent you a new message on ${appName}. Please check your phone."
+   (If it's a phone call: "Hello sir, you have an incoming call from [Sender].")
 
 Return ONLY valid JSON matching this schema:
 {
-  "spokenAnnouncement": "string (the natural English sentence to speak aloud)",
-  "shortSummary": "string (brief text summary)",
+  "spokenAnnouncement": "string (one of the exact templates above)",
+  "shortSummary": "string (brief summary of message)",
   "category": "string",
   "urgency": "High | Medium | Low",
-  "sender": "string (detected sender name or app)"
+  "sender": "string (detected sender name or last 4 digits)"
 }`;
 
       const response = await ai.models.generateContent({
@@ -79,11 +67,11 @@ Return ONLY valid JSON matching this schema:
         parsed = JSON.parse(textResult);
       } catch (e) {
         parsed = {
-          spokenAnnouncement: `Notification from ${appName}: ${title} - ${body}`,
+          spokenAnnouncement: `Hello sir, you have a new message from ${title || appName} on ${appName}.`,
           shortSummary: body || title,
           category: 'Alert',
           urgency: 'Medium',
-          sender: appName || 'App',
+          sender: title || appName || 'App',
         };
       }
 
@@ -101,13 +89,24 @@ Return ONLY valid JSON matching this schema:
     }
   });
 
-  if (isProduction) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const __dirname = path.resolve();
+
+  if (!isProduction) {
+    process.env.DISABLE_HMR = 'true';
+    const vite = await createViteServer({
+      server: { middlewareMode: true, hmr: false },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
 
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`NotifyVoice AI server running on http://localhost:${PORT}`);
   });
