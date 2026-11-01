@@ -38,6 +38,10 @@ jobs:
       - name: Add Capacitor Android Platform
         run: npx cap add android
 
+      - name: Configure Gradle Java Home
+        run: |
+          echo "org.gradle.java.home=$JAVA_HOME" >> android/gradle.properties
+
       - name: Sync Capacitor
         run: npx cap sync android
 
