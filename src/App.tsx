@@ -17,7 +17,12 @@ import {
   ShieldCheck,
   Check,
   Save,
-  Power
+  Power,
+  Phone,
+  Mic,
+  MicOff,
+  PhoneOff,
+  VolumeX
 } from 'lucide-react';
 
 interface NotificationLog {
@@ -156,6 +161,21 @@ export default function App() {
     "Excuse me sir, Ritesh just messaged you.",
     "Hello sir, Ritesh has sent you a new message. Please check your phone."
   ];
+
+  // Call Assistant & Voice Command State
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [isCallAssistantOn, setIsCallAssistantOn] = useState(true);
+
+  const [incomingCall, setIncomingCall] = useState<{
+    caller: string;
+    rawNumber?: string;
+    status: 'ringing' | 'connected' | 'connected_mute' | 'connected_speaker' | 'ended';
+  } | null>(null);
+  const [isMicListening, setIsMicListening] = useState(false);
+  const [voiceCommandTranscript, setVoiceCommandTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const ringtoneAudioRef = useRef<{ stop: () => void } | null>(null);
+  const isCallRingingRef = useRef(false);
 
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -315,8 +335,11 @@ export default function App() {
   };
 
   // Speaks aloud with crystal-clear natural voice
-  const speakWithVoice = (text: string, gender: 'female' | 'male', variant?: number) => {
-    if (!('speechSynthesis' in window)) return;
+  const speakWithVoice = (text: string, gender: 'female' | 'male', variant?: number, onEndCallback?: () => void) => {
+    if (!('speechSynthesis' in window)) {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -336,10 +359,240 @@ export default function App() {
       utterance.voice = voice;
     }
 
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      if (onEndCallback) onEndCallback();
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      if (onEndCallback) onEndCallback();
+    };
 
+    setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Realistic phone ringtone generator via Web Audio API
+  const startRingtone = () => {
+    stopRingtone();
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      let isStopped = false;
+
+      // Realistic phone ring tone: 440Hz + 480Hz double-ring cadence
+      const playRingCycle = () => {
+        if (isStopped || ctx.state === 'closed') return;
+        const now = ctx.currentTime;
+
+        [
+          { start: 0, duration: 0.45 },
+          { start: 0.6, duration: 0.45 }
+        ].forEach(({ start, duration }) => {
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc1.frequency.setValueAtTime(440, now + start);
+          osc2.frequency.setValueAtTime(480, now + start);
+
+          gain.gain.setValueAtTime(0, now + start);
+          gain.gain.linearRampToValueAtTime(0.25, now + start + 0.05);
+          gain.gain.setValueAtTime(0.25, now + start + duration - 0.05);
+          gain.gain.linearRampToValueAtTime(0, now + start + duration);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start(now + start);
+          osc2.start(now + start);
+          osc1.stop(now + start + duration);
+          osc2.stop(now + start + duration);
+        });
+
+        setTimeout(() => {
+          if (!isStopped) playRingCycle();
+        }, 3200);
+      };
+
+      playRingCycle();
+
+      ringtoneAudioRef.current = {
+        stop: () => {
+          isStopped = true;
+          try { ctx.close(); } catch {}
+          ringtoneAudioRef.current = null;
+        }
+      };
+    } catch (e) {
+      console.error('Ringtone playback error:', e);
+    }
+  };
+
+  const stopRingtone = () => {
+    if (ringtoneAudioRef.current) {
+      ringtoneAudioRef.current.stop();
+    }
+  };
+
+  // Immediate voice command listener while ringing
+  const startVoiceCommandListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.log('SpeechRecognition not available in this browser');
+      setIsMicListening(false);
+      return;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsMicListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => (result as any)[0].transcript)
+          .join(' ')
+          .toLowerCase();
+        
+        setVoiceCommandTranscript(transcript);
+
+        // Command 1: Receive and mute
+        if (/receive.*mute|mute/i.test(transcript)) {
+          handleCallAction('connected_mute');
+          try { recognition.stop(); } catch {}
+        }
+        // Command 2: Receive and speaker
+        else if (/receive.*speaker|speaker/i.test(transcript)) {
+          handleCallAction('connected_speaker');
+          try { recognition.stop(); } catch {}
+        }
+        // Command 3: Receive
+        else if (/receive|answer|accept/i.test(transcript)) {
+          handleCallAction('connected');
+          try { recognition.stop(); } catch {}
+        }
+        // Command 4: End
+        else if (/end|cut|reject|disconnect|decline/i.test(transcript)) {
+          handleCallAction('ended');
+          try { recognition.stop(); } catch {}
+        }
+      };
+
+      recognition.onerror = () => {
+        if (!isCallRingingRef.current) {
+          setIsMicListening(false);
+        }
+      };
+
+      recognition.onend = () => {
+        // Keep mic active as long as the phone is ringing
+        if (isCallRingingRef.current) {
+          try {
+            recognition.start();
+          } catch {
+            setIsMicListening(false);
+          }
+        } else {
+          setIsMicListening(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Error starting SpeechRecognition:', err);
+      setIsMicListening(false);
+    }
+  };
+
+  // Handles call command (from voice command or tap buttons)
+  const handleCallAction = (action: 'connected' | 'connected_mute' | 'connected_speaker' | 'ended') => {
+    // Stop ringing and mic immediately
+    isCallRingingRef.current = false;
+    stopRingtone();
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+    }
+    setIsMicListening(false);
+
+    setIncomingCall(prev => prev ? { ...prev, status: action } : null);
+
+    if (action === 'connected') {
+      speakWithVoice('Call received.', selectedGender);
+      setTimeout(() => {
+        setIncomingCall(null);
+        setVoiceCommandTranscript('');
+      }, 4000);
+    } else if (action === 'connected_mute') {
+      speakWithVoice('Call received on mute.', selectedGender);
+      setTimeout(() => {
+        setIncomingCall(null);
+        setVoiceCommandTranscript('');
+      }, 4000);
+    } else if (action === 'connected_speaker') {
+      speakWithVoice('Call received on speaker.', selectedGender);
+      setTimeout(() => {
+        setIncomingCall(null);
+        setVoiceCommandTranscript('');
+      }, 4000);
+    } else {
+      speakWithVoice('Call ended.', selectedGender);
+      setTimeout(() => {
+        setIncomingCall(null);
+        setVoiceCommandTranscript('');
+      }, 1500);
+    }
+  };
+
+  // Trigger Incoming Call:
+  // Phone does NOT speak anything ("pohne kahihi nahi bolnaar")
+  // Ringtone is heard as normal ("ji ring aahe na aaadhipasun ti aayku yeil")
+  // Microphone turns ON immediately and stays active while ringing
+  const triggerIncomingCall = (callerName: string, rawNumber?: string) => {
+    if (!isCallAssistantOn) {
+      console.log('Call assistant is OFF.');
+      return;
+    }
+
+    setShowCallModal(false);
+    setShowVoiceModal(false);
+    setShowRightPanel(false);
+
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+    }
+    window.speechSynthesis.cancel();
+    stopRingtone();
+
+    let cleanName = (callerName || '').trim();
+    const digits = (rawNumber || cleanName).replace(/\D/g, '');
+    if (!cleanName || cleanName.toLowerCase() === 'unknown' || (digits.length >= 6 && cleanName === rawNumber)) {
+      cleanName = digits.length >= 4 ? `number ending in ${digits.slice(-4)}` : 'unknown caller';
+    }
+
+    setIncomingCall({
+      caller: cleanName,
+      rawNumber: rawNumber || (digits.length >= 6 ? `+91 ${digits}` : undefined),
+      status: 'ringing'
+    });
+    setVoiceCommandTranscript('');
+
+    // Start ringtone and enable continuous mic listening
+    isCallRingingRef.current = true;
+    startRingtone();
+    startVoiceCommandListening();
   };
 
   // Announce notification aloud
@@ -477,6 +730,24 @@ export default function App() {
 
       {/* Top Right Controls */}
       <div className="absolute top-5 right-5 z-20 flex items-center gap-2.5">
+        {/* Transparent Call Icon Button (To the left of Voice Selection) */}
+        <button
+          onClick={() => {
+            setShowCallModal(!showCallModal);
+            setShowVoiceModal(false);
+          }}
+          className={`p-2.5 rounded-2xl border backdrop-blur-md transition shadow-lg flex items-center justify-center cursor-pointer ${
+            showCallModal
+              ? 'bg-white/25 border-emerald-400 text-emerald-300'
+              : isCallAssistantOn
+                ? 'bg-white/10 border-white/20 text-emerald-400 hover:bg-white/20'
+                : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/15'
+          }`}
+          title="Call Assistant Settings"
+        >
+          <Phone className="w-5 h-5" />
+        </button>
+
         {/* Speaker Voice Selection Button */}
         <button
           onClick={() => setShowVoiceModal(!showVoiceModal)}
@@ -497,6 +768,75 @@ export default function App() {
           <Sliders className="w-5 h-5 text-white" />
         </button>
       </div>
+
+      {/* Mini Window for Call Assistant */}
+      {showCallModal && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowCallModal(false)}
+        >
+          <div
+            className="absolute top-18 right-16 z-50 w-48 bg-black/25 border border-white/15 p-2 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-1.5 animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Transparent ON / OFF Button */}
+            <button
+              onClick={() => {
+                const nextState = !isCallAssistantOn;
+                setIsCallAssistantOn(nextState);
+                speakWithVoice(nextState ? 'Call Assistant ON' : 'Call Assistant OFF', selectedGender);
+              }}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition border backdrop-blur-md flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+                isCallAssistantOn
+                  ? 'bg-white/10 border-emerald-400/40 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.25)]'
+                  : 'bg-white/5 border-white/15 text-white/50 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Power className="w-3.5 h-3.5" />
+              <span>{isCallAssistantOn ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Call Commands: Receive, Receive and mute, Receive and speaker, End */}
+            <div className="border-t border-white/10 pt-1.5 space-y-1">
+              <button
+                onClick={() => speakWithVoice('Receive', selectedGender)}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
+                title="Command: Receive"
+              >
+                <span>Receive</span>
+                <Phone className="w-3 h-3 text-emerald-300/70" />
+              </button>
+
+              <button
+                onClick={() => speakWithVoice('Receive and mute', selectedGender)}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
+                title="Command: Receive and mute"
+              >
+                <span>Receive and mute</span>
+                <MicOff className="w-3 h-3 text-amber-300/70" />
+              </button>
+
+              <button
+                onClick={() => speakWithVoice('Receive and speaker', selectedGender)}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
+                title="Command: Receive and speaker"
+              >
+                <span>Receive and speaker</span>
+                <Volume2 className="w-3 h-3 text-blue-300/70" />
+              </button>
+
+              <button
+                onClick={() => speakWithVoice('End', selectedGender)}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
+                title="Command: End"
+              >
+                <span>End</span>
+                <PhoneOff className="w-3 h-3 text-rose-300/70" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mini Window for Voice Selection & Speed/Rate Controls */}
       {showVoiceModal && (
@@ -717,6 +1057,162 @@ export default function App() {
         </div>
       )}
 
+      {/* Active Incoming Call Assistant Card / Modal */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-black/60 border border-white/25 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl backdrop-blur-2xl text-white text-center">
+            
+            {/* Call Header */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="relative">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
+                  incomingCall.status === 'ringing' 
+                    ? 'bg-emerald-500/20 border-2 border-emerald-400 animate-pulse text-emerald-300' 
+                    : incomingCall.status === 'ended'
+                      ? 'bg-rose-500/20 border-2 border-rose-400 text-rose-300'
+                      : 'bg-blue-500/20 border-2 border-blue-400 text-blue-300'
+                }`}>
+                  <Phone className="w-7 h-7" />
+                </div>
+                {incomingCall.status === 'ringing' && (
+                  <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/80 border border-emerald-400/40 text-[9px] font-bold text-emerald-300 flex items-center gap-0.5 animate-pulse">
+                    <BellRing className="w-2.5 h-2.5 text-emerald-400 animate-bounce" />
+                    Ringing
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-0.5">
+                <h3 className="text-lg font-bold text-white tracking-wide">
+                  {incomingCall.caller}
+                </h3>
+                {incomingCall.rawNumber && (
+                  <p className="text-xs text-white/60 font-mono">
+                    {incomingCall.rawNumber}
+                  </p>
+                )}
+                <span className="inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+                  Ringing • Mic Active
+                </span>
+              </div>
+            </div>
+
+            {/* Assistant & Mic Status */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
+              {incomingCall.status === 'ringing' && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-center gap-2 text-xs text-cyan-300 font-bold">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                    </span>
+                    <Mic className="w-4 h-4 text-cyan-300" />
+                    <span>Microphone ON: Say Command</span>
+                  </div>
+                  <p className="text-[10px] text-white/60">
+                    Say: <span className="text-emerald-300 font-semibold">"Receive"</span>, <span className="text-amber-300 font-semibold">"Receive and mute"</span>, <span className="text-blue-300 font-semibold">"Receive and speaker"</span>, or <span className="text-rose-300 font-semibold">"End"</span>
+                  </p>
+                  {voiceCommandTranscript && (
+                    <div className="text-[11px] font-medium text-amber-300 bg-black/40 py-1 px-2 rounded-lg border border-white/10">
+                      Heard: "{voiceCommandTranscript}"
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {incomingCall.status === 'connected' && (
+                <div className="text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 py-1">
+                  <Phone className="w-4 h-4" />
+                  <span>Call Received</span>
+                </div>
+              )}
+
+              {incomingCall.status === 'connected_mute' && (
+                <div className="text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5 py-1">
+                  <MicOff className="w-4 h-4" />
+                  <span>Call Received (Mic Muted)</span>
+                </div>
+              )}
+
+              {incomingCall.status === 'connected_speaker' && (
+                <div className="text-xs font-bold text-blue-300 flex items-center justify-center gap-1.5 py-1">
+                  <Volume2 className="w-4 h-4" />
+                  <span>Call Received (On Loudspeaker)</span>
+                </div>
+              )}
+
+              {incomingCall.status === 'ended' && (
+                <div className="text-xs font-bold text-rose-300 flex items-center justify-center gap-1.5 py-1">
+                  <PhoneOff className="w-4 h-4" />
+                  <span>Call Disconnected</span>
+                </div>
+              )}
+            </div>
+
+            {/* 4 Action Buttons (Tap or Voice) */}
+            {incomingCall.status === 'ringing' && (
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                {/* 1. Receive */}
+                <button
+                  onClick={() => handleCallAction('connected')}
+                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-emerald-400/40"
+                  title="Receive"
+                >
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center group-hover:scale-110 transition">
+                    <Phone className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
+                    Receive
+                  </span>
+                </button>
+
+                {/* 2. Receive and mute */}
+                <button
+                  onClick={() => handleCallAction('connected_mute')}
+                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-amber-400/40"
+                  title="Receive and mute"
+                >
+                  <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center group-hover:scale-110 transition">
+                    <MicOff className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
+                    Recv & Mute
+                  </span>
+                </button>
+
+                {/* 3. Receive and speaker */}
+                <button
+                  onClick={() => handleCallAction('connected_speaker')}
+                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-blue-400/40"
+                  title="Receive and speaker"
+                >
+                  <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center group-hover:scale-110 transition">
+                    <Volume2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
+                    Recv & Spkr
+                  </span>
+                </button>
+
+                {/* 4. End */}
+                <button
+                  onClick={() => handleCallAction('ended')}
+                  className="p-2 rounded-2xl bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-200 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-rose-400/60"
+                  title="End Call"
+                >
+                  <div className="w-7 h-7 rounded-full bg-rose-500/25 text-rose-300 flex items-center justify-center group-hover:scale-110 transition">
+                    <PhoneOff className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[9.5px] font-semibold leading-tight text-rose-200">
+                    End Call
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Bottom Center Controls & 'Created by Rider' */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
         {/* Transparent ON / OFF Button (Transparent both when ON and when OFF) */}
@@ -743,46 +1239,58 @@ export default function App() {
         </span>
       </div>
 
-      {/* Right Side 15% Width 90% Transparent Drawer Panel with Original Smartphone Apps */}
+      {/* Right Side Drawer Panel with Original Smartphone Apps */}
       {showRightPanel && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/20 backdrop-blur-[1px]">
-          <div className="w-[15%] min-w-[58px] max-w-[125px] h-full bg-black/15 border-l border-white/10 p-2 shadow-2xl backdrop-blur-sm flex flex-col justify-between text-white animate-slide-left">
-            
-            {/* Header & App list */}
-            <div className="space-y-2 overflow-y-auto flex-1 py-1 flex flex-col items-center">
+        <div 
+          className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-[2px] animate-fade-in"
+          onClick={() => setShowRightPanel(false)}
+        >
+          <div 
+            className="w-[58%] sm:w-[42%] md:w-[28%] min-w-[200px] max-w-[280px] h-full bg-black/30 border-l border-white/15 p-3 shadow-2xl backdrop-blur-xl flex flex-col justify-between text-white animate-slide-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/10">
+              <span className="text-xs font-bold text-white/90">Installed Apps</span>
               <button
                 onClick={() => setShowRightPanel(false)}
-                className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition mb-0.5 cursor-pointer"
+                className="text-white/60 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition cursor-pointer"
                 title="Close"
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
 
-              {/* Stack of Original Installed Phone Apps with Permission Trigger */}
-              <div className="flex flex-col items-center gap-2 w-full">
-                {Object.entries(appToggles).map(([app, data]) => (
-                  <button
-                    key={app}
-                    onClick={() => handleAppToggleClick(app)}
-                    className={`w-full py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition border backdrop-blur-[2px] cursor-pointer ${
-                      data.isOn 
-                        ? 'bg-white/10 border-emerald-400/50 shadow-sm shadow-emerald-500/20' 
-                        : 'bg-white/5 border-white/10 opacity-35 hover:opacity-75'
-                    }`}
-                    title={`${app}: ${data.isOn ? 'ON (tap to disable)' : 'OFF (tap to grant permission)'}`}
-                  >
-                    <div className="p-0.5 flex items-center justify-center">
+            {/* Stack of Original Installed Phone Apps with Permission Trigger */}
+            <div className="space-y-1.5 overflow-y-auto flex-1 py-1 pr-1 custom-scrollbar">
+              {Object.entries(appToggles).map(([app, data]) => (
+                <button
+                  key={app}
+                  onClick={() => handleAppToggleClick(app)}
+                  className={`w-full py-2 px-2.5 rounded-2xl flex items-center justify-between gap-2 transition border backdrop-blur-md cursor-pointer ${
+                    data.isOn 
+                      ? 'bg-white/10 border-emerald-400/40 text-white shadow-sm shadow-emerald-500/15' 
+                      : 'bg-white/5 border-white/10 opacity-40 hover:opacity-80 text-white/70'
+                  }`}
+                  title={`${app}: ${data.isOn ? 'ON (tap to disable)' : 'OFF (tap to grant permission)'}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
                       {data.icon}
                     </div>
-                    <span className="text-[7.5px] font-semibold text-white/90 truncate max-w-full px-0.5">
+                    <span className="text-xs font-semibold text-white/95 truncate">
                       {app}
                     </span>
-                    <span className={`text-[8px] font-bold tracking-wider ${data.isOn ? 'text-emerald-300' : 'text-white/40'}`}>
-                      {data.isOn ? 'ON' : 'OFF'}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                  <span className={`text-[9.5px] font-bold tracking-wider px-2 py-0.5 rounded-lg shrink-0 ${
+                    data.isOn 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' 
+                      : 'bg-white/5 text-white/40 border border-white/10'
+                  }`}>
+                    {data.isOn ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              ))}
             </div>
 
             {/* Footer */}
