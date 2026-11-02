@@ -24,6 +24,7 @@ import {
   PhoneOff,
   VolumeX
 } from 'lucide-react';
+import { NotifyVoiceBridge } from './services/nativeBridge';
 
 interface NotificationLog {
   id: string;
@@ -218,9 +219,41 @@ export default function App() {
     };
     window.addEventListener('message', handleWindowMessage);
 
+    // 4. Real Android Native Device Event Listeners via Capacitor NotifyVoiceBridge
+    let notifListenerHandle: any = null;
+    let callListenerHandle: any = null;
+    let callEndedListenerHandle: any = null;
+
+    try {
+      NotifyVoiceBridge.addListener('notificationReceived', (data) => {
+        if (data && data.appName) {
+          announceNotification(data.appName, data.messageBody || data.title || '');
+        }
+      }).then(handle => { notifListenerHandle = handle; }).catch(() => {});
+
+      NotifyVoiceBridge.addListener('incomingCall', (data) => {
+        if (data) {
+          triggerIncomingCall(data.callerName || 'Unknown Caller', data.phoneNumber || '');
+        }
+      }).then(handle => { callListenerHandle = handle; }).catch(() => {});
+
+      NotifyVoiceBridge.addListener('callEnded', () => {
+        isCallRingingRef.current = false;
+        stopRingtone();
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch {}
+        }
+        setIsMicListening(false);
+        setIncomingCall(null);
+      }).then(handle => { callEndedListenerHandle = handle; }).catch(() => {});
+    } catch {}
+
     return () => {
       window.removeEventListener('message', handleWindowMessage);
       if (channel) channel.close();
+      if (notifListenerHandle && notifListenerHandle.remove) notifListenerHandle.remove();
+      if (callListenerHandle && callListenerHandle.remove) callListenerHandle.remove();
+      if (callEndedListenerHandle && callEndedListenerHandle.remove) callEndedListenerHandle.remove();
     };
   }, [isMasterOn]);
 
@@ -383,6 +416,13 @@ export default function App() {
 
     setIncomingCall(prev => prev ? { ...prev, status: action } : null);
 
+    // Trigger native Android telephony action if running on real device
+    if (action === 'connected') {
+      NotifyVoiceBridge.acceptCall().catch(() => {});
+    } else if (action === 'ended') {
+      NotifyVoiceBridge.endCall().catch(() => {});
+    }
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const responseText = action === 'connected' ? 'Call accepted.' : 'Call rejected.';
       const utter = new SpeechSynthesisUtterance(responseText);
@@ -447,6 +487,11 @@ export default function App() {
       if ('Notification' in window && Notification.permission !== 'granted') {
         await Notification.requestPermission();
       }
+    } catch {}
+
+    // Open real Android Notification Access Settings if running on device
+    try {
+      NotifyVoiceBridge.openNotificationListenerSettings().catch(() => {});
     } catch {}
 
     setAppToggles(prev => ({
