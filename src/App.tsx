@@ -33,7 +33,6 @@ interface NotificationLog {
   time: string;
 }
 
-// Minimalist boy and girl SVG icons (zero text)
 const BoyIcon = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 3a4 4 0 0 0-4 4v1a4 4 0 0 0 8 0V7a4 4 0 0 0-4-4Z" />
@@ -52,7 +51,6 @@ const GirlIcon = () => (
   </svg>
 );
 
-// Authentic Original Installed Smartphone App Icons
 const WhatsAppIcon = () => (
   <svg className="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
     <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.65 3.742-.983zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
@@ -139,13 +137,9 @@ export default function App() {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
 
-  // Master Switch state
   const [isMasterOn, setIsMasterOn] = useState(true);
-
-  // Permission Request State
   const [pendingPermissionApp, setPendingPermissionApp] = useState<string | null>(null);
 
-  // Voice Selection (Boy / Girl) & 3 distinct voices each with arrow dropdowns
   const [selectedGender, setSelectedGender] = useState<'female' | 'male'>('female');
   const [maleVoiceIndex, setMaleVoiceIndex] = useState(0);
   const [femaleVoiceIndex, setFemaleVoiceIndex] = useState(0);
@@ -153,23 +147,14 @@ export default function App() {
   const [openFemaleDropdown, setOpenFemaleDropdown] = useState(false);
   const [speechRate, setSpeechRate] = useState(0.95);
   const [speechPitch, setSpeechPitch] = useState(1.0);
-  const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
 
-  const DEMO_PHRASES = [
-    "Hello sir, you have a new message from Ritesh.",
-    "Hello sir, Ritesh has sent you a message.",
-    "Excuse me sir, Ritesh just messaged you.",
-    "Hello sir, Ritesh has sent you a new message. Please check your phone."
-  ];
-
-  // Call Assistant & Voice Command State
   const [showCallModal, setShowCallModal] = useState(false);
   const [isCallAssistantOn, setIsCallAssistantOn] = useState(true);
 
   const [incomingCall, setIncomingCall] = useState<{
     caller: string;
     rawNumber?: string;
-    status: 'ringing' | 'connected' | 'connected_mute' | 'connected_speaker' | 'ended';
+    status: 'ringing' | 'connected' | 'ended';
   } | null>(null);
   const [isMicListening, setIsMicListening] = useState(false);
   const [voiceCommandTranscript, setVoiceCommandTranscript] = useState('');
@@ -180,12 +165,6 @@ export default function App() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // Test form state
-  const [testApp, setTestApp] = useState('WhatsApp');
-  const [testMessage, setTestMessage] = useState('अरे राहुल, आज संध्याकाळी भेटायचं का?');
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Installed Smartphone Apps List (Original Authentic Apps)
   const [appToggles, setAppToggles] = useState<Record<string, { isOn: boolean; icon: React.ReactNode; color: string }>>({
     'WhatsApp': { isOn: true, icon: <WhatsAppIcon />, color: '#25D366' },
     'Phone': { isOn: true, icon: <PhoneCallIcon />, color: '#22C55E' },
@@ -206,12 +185,10 @@ export default function App() {
     appTogglesRef.current = appToggles;
   }, [appToggles]);
 
-  // Load available system voices
   useEffect(() => {
     const updateVoices = () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        const available = window.speechSynthesis.getVoices();
-        setVoices(available);
+        setVoices(window.speechSynthesis.getVoices());
       }
     };
     updateVoices();
@@ -220,42 +197,14 @@ export default function App() {
     }
   }, []);
 
-  // On App Open: Automatically request required system permissions & initialize notification listeners
   useEffect(() => {
-    // 1. Notification Permission request on open
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().catch(() => {});
-      }
-    }
-
-    // 2. Screen Wake Lock to keep phone active while announcer is ON
-    let wakeLockSentinel: any = null;
-    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && isMasterOn) {
-      navigator.wakeLock.request('screen').then(sentinel => {
-        wakeLockSentinel = sentinel;
-      }).catch(() => {});
-    }
-
-    // 3. Audio & Speech synthesis unlock for mobile devices
-    const unlockAudio = () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.resume();
-      }
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
-    };
-    window.addEventListener('click', unlockAudio);
-    window.addEventListener('touchstart', unlockAudio);
-
-    // 4. Background Notification Listener Connectivity (BroadcastChannel & Window Message)
     let channel: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         channel = new BroadcastChannel('notifyvoice_notification_channel');
         channel.onmessage = (event) => {
           if (event.data?.appName) {
-            handleProcessNotification(event.data.appName, event.data.message || '', event.data.sender);
+            announceNotification(event.data.appName, event.data.message || '');
           }
         };
       }
@@ -263,116 +212,38 @@ export default function App() {
 
     const handleWindowMessage = (event: MessageEvent) => {
       if (event.data && (event.data.type === 'INCOMING_NOTIFICATION' || event.data.type === 'NOTIFICATION')) {
-        const { appName, message, sender } = event.data;
-        handleProcessNotification(appName || 'WhatsApp', message || '', sender);
+        const { appName, message } = event.data;
+        announceNotification(appName || 'WhatsApp', message || '');
       }
     };
     window.addEventListener('message', handleWindowMessage);
 
     return () => {
-      if (wakeLockSentinel) wakeLockSentinel.release().catch(() => {});
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('message', handleWindowMessage);
       if (channel) channel.close();
     };
   }, [isMasterOn]);
 
-  // Strict gender voice classifier
-  const isFemaleVoice = (v: SpeechSynthesisVoice) => {
-    const name = v.name.toLowerCase();
-    if (name === 'google us english') return true;
-    return /female|girl|woman|samantha|victoria|zira|karen|aria|jenny|sonia|tessa|moira|fiona|veena|sangeeta|heera|iob|sfg#female/i.test(name);
-  };
+  // 1. window.speechSynthesis.speak() to read "[App Name] कडून मेसेज: [Message]"
+  const announceNotification = (appName: string, messageBody: string) => {
+    if (!isMasterOn) return;
+    if (!appTogglesRef.current[appName]?.isOn) return;
 
-  const isMaleVoice = (v: SpeechSynthesisVoice) => {
-    const name = v.name.toLowerCase();
-    return /male|boy|man|guy|david|george|alex|daniel|oliver|ryan|tom|mark|ravi|rishi|tpd|sfg#male/i.test(name);
-  };
-
-  // Filter and rank natural studio voices strictly per gender
-  const getRankedVoices = (gender: 'female' | 'male') => {
-    if (!voices || voices.length === 0) return [];
-
-    const enVoices = voices.filter(v => v.lang.startsWith('en'));
-    const pool = enVoices.length > 0 ? enVoices : voices;
-
-    if (gender === 'male') {
-      const maleVoices = pool.filter(v => isMaleVoice(v) && !isFemaleVoice(v));
-      if (maleVoices.length > 0) return maleVoices;
-      const nonFemaleVoices = pool.filter(v => !isFemaleVoice(v));
-      if (nonFemaleVoices.length > 0) return nonFemaleVoices;
-      return pool;
-    } else {
-      const femaleVoices = pool.filter(v => isFemaleVoice(v) && !isMaleVoice(v));
-      if (femaleVoices.length > 0) return femaleVoices;
-      return pool;
-    }
-  };
-
-  const getBestVoice = (gender: 'female' | 'male', index: number) => {
-    const ranked = getRankedVoices(gender);
-    if (ranked.length === 0) return undefined;
-    return ranked[index % ranked.length];
-  };
-
-  // Play gentle notification sound
-  const playChime = () => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.25);
-    } catch {}
-  };
-
-  // Speaks aloud with crystal-clear natural voice
-  const speakWithVoice = (text: string, gender: 'female' | 'male', variant?: number, onEndCallback?: () => void) => {
-    if (!('speechSynthesis' in window)) {
-      if (onEndCallback) onEndCallback();
-      return;
-    }
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = speechRate;
-
-    const vIndex = variant !== undefined ? variant : (gender === 'female' ? femaleVoiceIndex : maleVoiceIndex);
-
-    const pitchOffsets = gender === 'female' 
-      ? [1.0, 1.08, 1.04] 
-      : [0.82, 0.76, 0.85];
-    
-    const basePitch = pitchOffsets[vIndex % 3];
-    utterance.pitch = Math.max(0.6, Math.min(1.5, basePitch * speechPitch));
-
-    const voice = getBestVoice(gender, vIndex);
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      if (onEndCallback) onEndCallback();
-    };
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      if (onEndCallback) onEndCallback();
-    };
-
+    const announcementText = `${appName} कडून मेसेज: ${messageBody}`;
+    setCurrentAnnouncement(announcementText);
     setIsSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(announcementText);
+      utterance.rate = speechRate;
+      utterance.pitch = speechPitch;
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
   };
 
-  // Realistic phone ringtone generator via Web Audio API
   const startRingtone = () => {
     stopRingtone();
     try {
@@ -381,7 +252,6 @@ export default function App() {
       const ctx = new AudioContextClass();
       let isStopped = false;
 
-      // Realistic phone ring tone: 440Hz + 480Hz double-ring cadence
       const playRingCycle = () => {
         if (isStopped || ctx.state === 'closed') return;
         const now = ctx.currentTime;
@@ -426,9 +296,7 @@ export default function App() {
           ringtoneAudioRef.current = null;
         }
       };
-    } catch (e) {
-      console.error('Ringtone playback error:', e);
-    }
+    } catch {}
   };
 
   const stopRingtone = () => {
@@ -437,11 +305,11 @@ export default function App() {
     }
   };
 
-  // Immediate voice command listener while ringing
+  // 2. const recognition = new (window.webkitSpeechRecognition || window.SpeechRecognition)()
+  // listening for "Answer", "कॉल उचल", "Reject", "कॉल काप"
   const startVoiceCommandListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.log('SpeechRecognition not available in this browser');
+    const SpeechRecognitionAPI = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SpeechRecognitionAPI) {
       setIsMicListening(false);
       return;
     }
@@ -451,10 +319,10 @@ export default function App() {
         try { recognitionRef.current.abort(); } catch {}
       }
 
-      const recognition = new SpeechRecognition();
+      const recognition = new SpeechRecognitionAPI();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      recognition.lang = 'mr-IN';
 
       recognition.onstart = () => {
         setIsMicListening(true);
@@ -465,26 +333,16 @@ export default function App() {
           .map((result: any) => (result as any)[0].transcript)
           .join(' ')
           .toLowerCase();
-        
+
         setVoiceCommandTranscript(transcript);
 
-        // Command 1: Receive and mute
-        if (/receive.*mute|mute/i.test(transcript)) {
-          handleCallAction('connected_mute');
-          try { recognition.stop(); } catch {}
-        }
-        // Command 2: Receive and speaker
-        else if (/receive.*speaker|speaker/i.test(transcript)) {
-          handleCallAction('connected_speaker');
-          try { recognition.stop(); } catch {}
-        }
-        // Command 3: Receive
-        else if (/receive|answer|accept/i.test(transcript)) {
+        // Listen for "Answer" or "कॉल उचल"
+        if (/answer|accept|कॉल उचल|उचल/i.test(transcript)) {
           handleCallAction('connected');
           try { recognition.stop(); } catch {}
         }
-        // Command 4: End
-        else if (/end|cut|reject|disconnect|decline/i.test(transcript)) {
+        // Listen for "Reject" or "कॉल काप"
+        else if (/reject|cut|disconnect|कॉल काप|काप/i.test(transcript)) {
           handleCallAction('ended');
           try { recognition.stop(); } catch {}
         }
@@ -497,7 +355,6 @@ export default function App() {
       };
 
       recognition.onend = () => {
-        // Keep mic active as long as the phone is ringing
         if (isCallRingingRef.current) {
           try {
             recognition.start();
@@ -512,14 +369,11 @@ export default function App() {
       recognitionRef.current = recognition;
       recognition.start();
     } catch (err) {
-      console.error('Error starting SpeechRecognition:', err);
       setIsMicListening(false);
     }
   };
 
-  // Handles call command (from voice command or tap buttons)
-  const handleCallAction = (action: 'connected' | 'connected_mute' | 'connected_speaker' | 'ended') => {
-    // Stop ringing and mic immediately
+  const handleCallAction = (action: 'connected' | 'ended') => {
     isCallRingingRef.current = false;
     stopRingtone();
     if (recognitionRef.current) {
@@ -529,42 +383,20 @@ export default function App() {
 
     setIncomingCall(prev => prev ? { ...prev, status: action } : null);
 
-    if (action === 'connected') {
-      speakWithVoice('Call received.', selectedGender);
-      setTimeout(() => {
-        setIncomingCall(null);
-        setVoiceCommandTranscript('');
-      }, 4000);
-    } else if (action === 'connected_mute') {
-      speakWithVoice('Call received on mute.', selectedGender);
-      setTimeout(() => {
-        setIncomingCall(null);
-        setVoiceCommandTranscript('');
-      }, 4000);
-    } else if (action === 'connected_speaker') {
-      speakWithVoice('Call received on speaker.', selectedGender);
-      setTimeout(() => {
-        setIncomingCall(null);
-        setVoiceCommandTranscript('');
-      }, 4000);
-    } else {
-      speakWithVoice('Call ended.', selectedGender);
-      setTimeout(() => {
-        setIncomingCall(null);
-        setVoiceCommandTranscript('');
-      }, 1500);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const responseText = action === 'connected' ? 'Call accepted.' : 'Call rejected.';
+      const utter = new SpeechSynthesisUtterance(responseText);
+      window.speechSynthesis.speak(utter);
     }
+
+    setTimeout(() => {
+      setIncomingCall(null);
+      setVoiceCommandTranscript('');
+    }, 2500);
   };
 
-  // Trigger Incoming Call:
-  // Phone does NOT speak anything ("pohne kahihi nahi bolnaar")
-  // Ringtone is heard as normal ("ji ring aahe na aaadhipasun ti aayku yeil")
-  // Microphone turns ON immediately and stays active while ringing
   const triggerIncomingCall = (callerName: string, rawNumber?: string) => {
-    if (!isCallAssistantOn) {
-      console.log('Call assistant is OFF.');
-      return;
-    }
+    if (!isCallAssistantOn) return;
 
     setShowCallModal(false);
     setShowVoiceModal(false);
@@ -573,12 +405,14 @@ export default function App() {
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch {}
     }
-    window.speechSynthesis.cancel();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     stopRingtone();
 
     let cleanName = (callerName || '').trim();
     const digits = (rawNumber || cleanName).replace(/\D/g, '');
-    if (!cleanName || cleanName.toLowerCase() === 'unknown' || (digits.length >= 6 && cleanName === rawNumber)) {
+    if (!cleanName || cleanName.toLowerCase() === 'unknown') {
       cleanName = digits.length >= 4 ? `number ending in ${digits.slice(-4)}` : 'unknown caller';
     }
 
@@ -589,105 +423,18 @@ export default function App() {
     });
     setVoiceCommandTranscript('');
 
-    // Start ringtone and enable continuous mic listening
     isCallRingingRef.current = true;
     startRingtone();
     startVoiceCommandListening();
   };
 
-  // Announce notification aloud
-  const announceNotification = (appName: string, originalText: string, englishText: string) => {
-    if (!isMasterOn) {
-      console.log('Notification ignored because master announcer is OFF.');
-      return;
-    }
-
-    if (!appTogglesRef.current[appName]?.isOn) {
-      console.log(`Notification from ${appName} ignored because toggle is OFF.`);
-      return;
-    }
-
-    playChime();
-    setCurrentAnnouncement(`${appName}: ${englishText}`);
-    setIsSpeaking(true);
-
-    const activeIndex = selectedGender === 'female' ? femaleVoiceIndex : maleVoiceIndex;
-    speakWithVoice(englishText, selectedGender, activeIndex);
-
-    const logItem: NotificationLog = {
-      id: Date.now().toString(),
-      app: appName,
-      original: originalText,
-      english: englishText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setNotifications(prev => [logItem, ...prev.slice(0, 10)]);
-  };
-
-  // Formats announcement using the exact phrase style selected in the voice window
-  const formatAnnouncementWithSelectedPhrase = (sender: string, appName: string, phraseIdx = selectedPhraseIndex) => {
-    let cleanSender = (sender || '').trim();
-    if (!cleanSender || cleanSender.toLowerCase() === 'alert' || cleanSender.toLowerCase() === 'notification') {
-      cleanSender = appName;
-    }
-    const digits = cleanSender.replace(/\D/g, '');
-    if (digits.length >= 6) {
-      cleanSender = `number ending in ${digits.slice(-4)}`;
-    }
-
-    switch (phraseIdx) {
-      case 0:
-        return `Hello sir, you have a new message from ${cleanSender} on ${appName}.`;
-      case 1:
-        return `Hello sir, ${cleanSender} has sent you a message on ${appName}.`;
-      case 2:
-        return `Excuse me sir, ${cleanSender} just messaged you on ${appName}.`;
-      case 3:
-      default:
-        return `Hello sir, ${cleanSender} has sent you a new message on ${appName}. Please check your phone.`;
-    }
-  };
-
-  // Process incoming notification via Gemini AI
-  const handleProcessNotification = async (appName: string, message: string, senderName?: string) => {
-    if (!appTogglesRef.current[appName]?.isOn) {
-      console.log(`Notifications for ${appName} are turned OFF in your settings.`);
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const res = await fetch('/api/translate-and-summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, title: senderName || 'Alert', body: message, originalLanguage: 'Auto' }),
-      });
-      const data = await res.json();
-      const detectedSender = data.sender || senderName || appName;
-      const spoken = formatAnnouncementWithSelectedPhrase(detectedSender, appName, selectedPhraseIndex);
-      announceNotification(appName, message, spoken);
-      setShowTestModal(false);
-    } catch {
-      const spoken = formatAnnouncementWithSelectedPhrase(senderName || appName, appName, selectedPhraseIndex);
-      announceNotification(appName, message, spoken);
-      setShowTestModal(false);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // User selects an app in the settings drawer:
-  // If OFF -> Asks for notification permission with Android dialog!
-  // If ON -> Turns OFF
   const handleAppToggleClick = (app: string) => {
-    const isCurrentlyOn = appToggles[app]?.isOn;
-    if (isCurrentlyOn) {
+    if (appToggles[app]?.isOn) {
       setAppToggles(prev => ({
         ...prev,
         [app]: { ...prev[app], isOn: false }
       }));
     } else {
-      // Trigger notification permission request dialog
       setPendingPermissionApp(app);
     }
   };
@@ -696,7 +443,6 @@ export default function App() {
     if (!pendingPermissionApp) return;
     const app = pendingPermissionApp;
 
-    // Trigger browser system notification permission if available
     try {
       if ('Notification' in window && Notification.permission !== 'granted') {
         await Notification.requestPermission();
@@ -707,12 +453,6 @@ export default function App() {
       ...prev,
       [app]: { ...prev[app], isOn: true }
     }));
-    setPendingPermissionApp(null);
-    playChime();
-    speakWithVoice(`${app} notification access granted.`, selectedGender);
-  };
-
-  const handleDenyPermission = () => {
     setPendingPermissionApp(null);
   };
 
@@ -725,12 +465,10 @@ export default function App() {
         backgroundPosition: 'center',
       }}
     >
-      {/* Ultra-transparent overlay so background image is crystal clear */}
       <div className="absolute inset-0 bg-black/10 pointer-events-none" />
 
       {/* Top Right Controls */}
       <div className="absolute top-5 right-5 z-20 flex items-center gap-2.5">
-        {/* Transparent Call Icon Button (To the left of Voice Selection) */}
         <button
           onClick={() => {
             setShowCallModal(!showCallModal);
@@ -748,7 +486,6 @@ export default function App() {
           <Phone className="w-5 h-5" />
         </button>
 
-        {/* Speaker Voice Selection Button */}
         <button
           onClick={() => setShowVoiceModal(!showVoiceModal)}
           className={`p-2.5 rounded-2xl border backdrop-blur-md transition shadow-lg flex items-center justify-center cursor-pointer ${
@@ -759,7 +496,6 @@ export default function App() {
           <Volume2 className="w-5 h-5" />
         </button>
 
-        {/* Right Drawer Toggle (15% Screen width panel) */}
         <button
           onClick={() => setShowRightPanel(true)}
           className="p-2.5 rounded-2xl bg-white/10 border border-white/20 text-white hover:bg-white/25 backdrop-blur-md transition shadow-lg flex items-center justify-center cursor-pointer"
@@ -779,13 +515,8 @@ export default function App() {
             className="absolute top-18 right-16 z-50 w-48 bg-black/25 border border-white/15 p-2 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-1.5 animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Transparent ON / OFF Button */}
             <button
-              onClick={() => {
-                const nextState = !isCallAssistantOn;
-                setIsCallAssistantOn(nextState);
-                speakWithVoice(nextState ? 'Call Assistant ON' : 'Call Assistant OFF', selectedGender);
-              }}
+              onClick={() => setIsCallAssistantOn(!isCallAssistantOn)}
               className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition border backdrop-blur-md flex items-center justify-center gap-2 cursor-pointer shadow-md ${
                 isCallAssistantOn
                   ? 'bg-white/10 border-emerald-400/40 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.25)]'
@@ -796,49 +527,20 @@ export default function App() {
               <span>{isCallAssistantOn ? 'ON' : 'OFF'}</span>
             </button>
 
-            {/* Call Commands: Receive, Receive and mute, Receive and speaker, End */}
             <div className="border-t border-white/10 pt-1.5 space-y-1">
               <button
-                onClick={() => speakWithVoice('Receive', selectedGender)}
+                onClick={() => triggerIncomingCall('Ritesh', '+91 98765 43210')}
                 className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
-                title="Command: Receive"
               >
-                <span>Receive</span>
-                <Phone className="w-3 h-3 text-emerald-300/70" />
-              </button>
-
-              <button
-                onClick={() => speakWithVoice('Receive and mute', selectedGender)}
-                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
-                title="Command: Receive and mute"
-              >
-                <span>Receive and mute</span>
-                <MicOff className="w-3 h-3 text-amber-300/70" />
-              </button>
-
-              <button
-                onClick={() => speakWithVoice('Receive and speaker', selectedGender)}
-                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
-                title="Command: Receive and speaker"
-              >
-                <span>Receive and speaker</span>
-                <Volume2 className="w-3 h-3 text-blue-300/70" />
-              </button>
-
-              <button
-                onClick={() => speakWithVoice('End', selectedGender)}
-                className="w-full py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left text-[11px] text-white/80 hover:text-white font-medium backdrop-blur-md transition cursor-pointer flex items-center justify-between"
-                title="Command: End"
-              >
-                <span>End</span>
-                <PhoneOff className="w-3 h-3 text-rose-300/70" />
+                <span>Simulate Call</span>
+                <Phone className="w-3 h-3 text-emerald-300" />
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mini Window for Voice Selection & Speed/Rate Controls */}
+      {/* Mini Window for Voice Selection */}
       {showVoiceModal && (
         <div
           className="fixed inset-0 z-40"
@@ -848,122 +550,48 @@ export default function App() {
             className="absolute top-18 right-5 z-50 w-64 max-h-[82vh] overflow-y-auto bg-black/45 border border-white/20 p-3 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Two Columns: Male and Female with respective 1, 2, 3 drop-downs right underneath */}
             <div className="flex gap-2 items-start">
-              {/* Male Column */}
               <div className="flex-1 flex flex-col items-center gap-1.5">
                 <button
                   onClick={() => {
                     setSelectedGender('male');
                     setOpenMaleDropdown(!openMaleDropdown);
                     setOpenFemaleDropdown(false);
-                    speakWithVoice('Hello sir, Ritesh has sent you a new message. Please check your phone.', 'male', maleVoiceIndex);
                   }}
                   className={`w-full py-2 px-2 rounded-xl transition border backdrop-blur-md flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectedGender === 'male'
                       ? 'bg-blue-500/35 border-blue-400 text-blue-300 shadow-[0_0_12px_rgba(96,165,250,0.5)] ring-1 ring-blue-400'
                       : 'bg-white/10 border-white/15 text-white/50 hover:text-white hover:bg-white/20'
                   }`}
-                  title="Boy Voice"
                 >
                   <BoyIcon />
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${openMaleDropdown ? 'rotate-180 text-blue-300' : 'text-white/40'}`} />
                 </button>
-
-                {/* Male 1 2 3 Voices dropdown underneath */}
-                {openMaleDropdown && (
-                  <div className="w-full flex items-center justify-between gap-1 bg-white/5 p-1 rounded-xl border border-blue-400/30 animate-fade-in">
-                    {[0, 1, 2].map((idx) => {
-                      const phrases = [
-                        'Hello sir, you have a new message from Ritesh.',
-                        'Hello sir, Ritesh has sent you a message.',
-                        'Excuse me sir, Ritesh just messaged you.'
-                      ];
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setSelectedGender('male');
-                            setMaleVoiceIndex(idx);
-                            speakWithVoice(phrases[idx], 'male', idx);
-                          }}
-                          className={`flex-1 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
-                            selectedGender === 'male' && maleVoiceIndex === idx
-                              ? 'bg-blue-500/50 border-blue-400 text-blue-100 shadow-sm'
-                              : 'bg-transparent border-transparent text-white/50 hover:text-white hover:bg-white/10'
-                          }`}
-                          title={`Male Voice ${idx + 1}`}
-                        >
-                          {idx + 1}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
-              {/* Female Column */}
               <div className="flex-1 flex flex-col items-center gap-1.5">
                 <button
                   onClick={() => {
                     setSelectedGender('female');
                     setOpenFemaleDropdown(!openFemaleDropdown);
                     setOpenMaleDropdown(false);
-                    speakWithVoice('Hello sir, Ritesh has sent you a new message. Please check your phone.', 'female', femaleVoiceIndex);
                   }}
                   className={`w-full py-2 px-2 rounded-xl transition border backdrop-blur-md flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectedGender === 'female'
                       ? 'bg-pink-500/35 border-pink-400 text-pink-300 shadow-[0_0_12px_rgba(244,114,182,0.5)] ring-1 ring-pink-400'
                       : 'bg-white/10 border-white/15 text-white/50 hover:text-white hover:bg-white/20'
                   }`}
-                  title="Girl Voice"
                 >
                   <GirlIcon />
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${openFemaleDropdown ? 'rotate-180 text-pink-300' : 'text-white/40'}`} />
                 </button>
-
-                {/* Female 1 2 3 Voices dropdown underneath */}
-                {openFemaleDropdown && (
-                  <div className="w-full flex items-center justify-between gap-1 bg-white/5 p-1 rounded-xl border border-pink-400/30 animate-fade-in">
-                    {[0, 1, 2].map((idx) => {
-                      const phrases = [
-                        'Hello sir, you have a new message from Ritesh.',
-                        'Hello sir, Ritesh has sent you a message.',
-                        'Excuse me sir, Ritesh just messaged you.'
-                      ];
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setSelectedGender('female');
-                            setFemaleVoiceIndex(idx);
-                            speakWithVoice(phrases[idx], 'female', idx);
-                          }}
-                          className={`flex-1 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
-                            selectedGender === 'female' && femaleVoiceIndex === idx
-                              ? 'bg-pink-500/50 border-pink-400 text-pink-100 shadow-sm'
-                              : 'bg-transparent border-transparent text-white/50 hover:text-white hover:bg-white/10'
-                          }`}
-                          title={`Female Voice ${idx + 1}`}
-                        >
-                          {idx + 1}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Two Transparent Sliders: Speed & Speech Rate */}
             <div className="border-t border-white/10 pt-2 space-y-2">
-              {/* Speed Slider */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-white/80 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Gauge className="w-3 h-3 text-blue-300" />
-                    Speed
-                  </span>
+                  <span className="flex items-center gap-1"><Gauge className="w-3 h-3 text-blue-300" />Speed</span>
                   <span className="text-blue-300 font-semibold">{speechRate.toFixed(2)}x</span>
                 </div>
                 <input
@@ -972,21 +600,14 @@ export default function App() {
                   max="1.5"
                   step="0.05"
                   value={speechRate}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setSpeechRate(val);
-                  }}
+                  onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
                   className="w-full accent-blue-400 bg-white/10 h-1.5 rounded-lg cursor-pointer"
                 />
               </div>
 
-              {/* Speech Rate / Pitch Slider */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-white/80 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Music className="w-3 h-3 text-pink-300" />
-                    Pitch
-                  </span>
+                  <span className="flex items-center gap-1"><Music className="w-3 h-3 text-pink-300" />Pitch</span>
                   <span className="text-pink-300 font-semibold">{speechPitch.toFixed(2)}</span>
                 </div>
                 <input
@@ -995,53 +616,23 @@ export default function App() {
                   max="1.2"
                   step="0.05"
                   value={speechPitch}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setSpeechPitch(val);
-                  }}
+                  onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
                   className="w-full accent-pink-400 bg-white/10 h-1.5 rounded-lg cursor-pointer"
                 />
               </div>
-            </div>
-
-            {/* 4 Demo Phrases in Voice Selection */}
-            <div className="border-t border-white/10 pt-2 space-y-1.5">
-              <span className="text-[9px] font-semibold text-white/50 uppercase tracking-wider block px-1">
-                Demo Phrases
-              </span>
-              {DEMO_PHRASES.map((phrase, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setSelectedPhraseIndex(idx);
-                    speakWithVoice(phrase, selectedGender);
-                  }}
-                  className={`w-full p-2 rounded-xl text-left text-[10.5px] leading-snug transition border backdrop-blur-md cursor-pointer flex items-start gap-1.5 ${
-                    selectedPhraseIndex === idx
-                      ? selectedGender === 'male'
-                        ? 'bg-blue-500/25 border-blue-400 text-blue-200 shadow-sm ring-1 ring-blue-400/50'
-                        : 'bg-pink-500/25 border-pink-400 text-pink-200 shadow-sm ring-1 ring-pink-400/50'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Click to play demo"
-                >
-                  <span className="font-bold text-[9px] opacity-60 shrink-0 mt-0.5">{idx + 1}.</span>
-                  <span className="flex-1 font-medium">"{phrase}"</span>
-                </button>
-              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Floating Notification Reader Card (Reads notifications aloud) */}
+      {/* Floating Notification Reader Card */}
       {currentAnnouncement && (
         <div className="absolute bottom-22 left-1/2 -translate-x-1/2 z-30 max-w-sm w-full px-4 animate-fade-in">
           <div className="bg-black/35 border border-white/25 rounded-2xl p-4 backdrop-blur-xl shadow-2xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-emerald-300 flex items-center gap-2">
                 <Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce text-emerald-400' : ''}`} />
-                {isSpeaking ? 'Reading Notification Aloud...' : 'Notification Read'}
+                {isSpeaking ? 'Announcing Message...' : 'Message Announced'}
               </span>
               <button
                 onClick={() => setCurrentAnnouncement(null)}
@@ -1057,12 +648,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Active Incoming Call Assistant Card / Modal */}
+      {/* Active Incoming Call Assistant Modal */}
       {incomingCall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
           <div className="bg-black/60 border border-white/25 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl backdrop-blur-2xl text-white text-center">
-            
-            {/* Call Header */}
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
@@ -1074,12 +663,6 @@ export default function App() {
                 }`}>
                   <Phone className="w-7 h-7" />
                 </div>
-                {incomingCall.status === 'ringing' && (
-                  <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/80 border border-emerald-400/40 text-[9px] font-bold text-emerald-300 flex items-center gap-0.5 animate-pulse">
-                    <BellRing className="w-2.5 h-2.5 text-emerald-400 animate-bounce" />
-                    Ringing
-                  </span>
-                )}
               </div>
 
               <div className="space-y-0.5">
@@ -1092,12 +675,11 @@ export default function App() {
                   </p>
                 )}
                 <span className="inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
-                  Ringing • Mic Active
+                  Ringing • Mic Active (Speak: "Answer" or "कॉल उचल")
                 </span>
               </div>
             </div>
 
-            {/* Assistant & Mic Status */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
               {incomingCall.status === 'ringing' && (
                 <div className="space-y-1">
@@ -1107,11 +689,8 @@ export default function App() {
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
                     </span>
                     <Mic className="w-4 h-4 text-cyan-300" />
-                    <span>Microphone ON: Say Command</span>
+                    <span>Microphone Listening...</span>
                   </div>
-                  <p className="text-[10px] text-white/60">
-                    Say: <span className="text-emerald-300 font-semibold">"Receive"</span>, <span className="text-amber-300 font-semibold">"Receive and mute"</span>, <span className="text-blue-300 font-semibold">"Receive and speaker"</span>, or <span className="text-rose-300 font-semibold">"End"</span>
-                  </p>
                   {voiceCommandTranscript && (
                     <div className="text-[11px] font-medium text-amber-300 bg-black/40 py-1 px-2 rounded-lg border border-white/10">
                       Heard: "{voiceCommandTranscript}"
@@ -1123,89 +702,34 @@ export default function App() {
               {incomingCall.status === 'connected' && (
                 <div className="text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 py-1">
                   <Phone className="w-4 h-4" />
-                  <span>Call Received</span>
-                </div>
-              )}
-
-              {incomingCall.status === 'connected_mute' && (
-                <div className="text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5 py-1">
-                  <MicOff className="w-4 h-4" />
-                  <span>Call Received (Mic Muted)</span>
-                </div>
-              )}
-
-              {incomingCall.status === 'connected_speaker' && (
-                <div className="text-xs font-bold text-blue-300 flex items-center justify-center gap-1.5 py-1">
-                  <Volume2 className="w-4 h-4" />
-                  <span>Call Received (On Loudspeaker)</span>
+                  <span>Call Accepted</span>
                 </div>
               )}
 
               {incomingCall.status === 'ended' && (
                 <div className="text-xs font-bold text-rose-300 flex items-center justify-center gap-1.5 py-1">
                   <PhoneOff className="w-4 h-4" />
-                  <span>Call Disconnected</span>
+                  <span>Call Rejected</span>
                 </div>
               )}
             </div>
 
-            {/* 4 Action Buttons (Tap or Voice) */}
             {incomingCall.status === 'ringing' && (
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                {/* 1. Receive */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   onClick={() => handleCallAction('connected')}
-                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-emerald-400/40"
-                  title="Receive"
+                  className="p-3 rounded-2xl bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-400/50 text-emerald-200 backdrop-blur-md flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center group-hover:scale-110 transition">
-                    <Phone className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
-                    Receive
-                  </span>
+                  <Phone className="w-4 h-4" />
+                  <span className="text-xs font-bold">Accept</span>
                 </button>
 
-                {/* 2. Receive and mute */}
-                <button
-                  onClick={() => handleCallAction('connected_mute')}
-                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-amber-400/40"
-                  title="Receive and mute"
-                >
-                  <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center group-hover:scale-110 transition">
-                    <MicOff className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
-                    Recv & Mute
-                  </span>
-                </button>
-
-                {/* 3. Receive and speaker */}
-                <button
-                  onClick={() => handleCallAction('connected_speaker')}
-                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-blue-400/40"
-                  title="Receive and speaker"
-                >
-                  <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center group-hover:scale-110 transition">
-                    <Volume2 className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[9.5px] font-semibold leading-tight text-white/90">
-                    Recv & Spkr
-                  </span>
-                </button>
-
-                {/* 4. End */}
                 <button
                   onClick={() => handleCallAction('ended')}
-                  className="p-2 rounded-2xl bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-200 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 transition cursor-pointer group hover:border-rose-400/60"
-                  title="End Call"
+                  className="p-3 rounded-2xl bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400/50 text-rose-200 backdrop-blur-md flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-full bg-rose-500/25 text-rose-300 flex items-center justify-center group-hover:scale-110 transition">
-                    <PhoneOff className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[9.5px] font-semibold leading-tight text-rose-200">
-                    End Call
-                  </span>
+                  <PhoneOff className="w-4 h-4" />
+                  <span className="text-xs font-bold">Reject</span>
                 </button>
               </div>
             )}
@@ -1215,12 +739,14 @@ export default function App() {
 
       {/* Bottom Center Controls & 'Created by Rider' */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
-        {/* Transparent ON / OFF Button (Transparent both when ON and when OFF) */}
         <button
           onClick={() => {
             const nextState = !isMasterOn;
             setIsMasterOn(nextState);
-            speakWithVoice(nextState ? 'Rider ON' : 'Rider OFF', selectedGender);
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+              const utter = new SpeechSynthesisUtterance(nextState ? 'Rider ON' : 'Rider OFF');
+              window.speechSynthesis.speak(utter);
+            }
           }}
           className={`px-5 py-2 rounded-2xl text-xs font-bold transition border backdrop-blur-md flex items-center gap-2 cursor-pointer shadow-lg ${
             isMasterOn
@@ -1233,13 +759,12 @@ export default function App() {
           <span>{isMasterOn ? 'ON' : 'OFF'}</span>
         </button>
 
-        {/* Small 'Created by Rider' Text */}
         <span className="text-[10px] text-white/50 tracking-wider font-medium select-none">
           Created by Rider
         </span>
       </div>
 
-      {/* Right Side Drawer Panel with Original Smartphone Apps */}
+      {/* Right Side Drawer Panel */}
       {showRightPanel && (
         <div 
           className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-[2px] animate-fade-in"
@@ -1249,19 +774,16 @@ export default function App() {
             className="w-[58%] sm:w-[42%] md:w-[28%] min-w-[200px] max-w-[280px] h-full bg-black/30 border-l border-white/15 p-3 shadow-2xl backdrop-blur-xl flex flex-col justify-between text-white animate-slide-left"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/10">
               <span className="text-xs font-bold text-white/90">Installed Apps</span>
               <button
                 onClick={() => setShowRightPanel(false)}
                 className="text-white/60 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition cursor-pointer"
-                title="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Stack of Original Installed Phone Apps with Permission Trigger */}
             <div className="space-y-1.5 overflow-y-auto flex-1 py-1 pr-1 custom-scrollbar">
               {Object.entries(appToggles).map(([app, data]) => (
                 <button
@@ -1272,7 +794,6 @@ export default function App() {
                       ? 'bg-white/10 border-emerald-400/40 text-white shadow-sm shadow-emerald-500/15' 
                       : 'bg-white/5 border-white/10 opacity-40 hover:opacity-80 text-white/70'
                   }`}
-                  title={`${app}: ${data.isOn ? 'ON (tap to disable)' : 'OFF (tap to grant permission)'}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
@@ -1293,16 +814,9 @@ export default function App() {
               ))}
             </div>
 
-            {/* Footer */}
             <div className="pt-2 border-t border-white/10 flex justify-center w-full">
               <button
-                onClick={() => {
-                  if (isMasterOn) {
-                    setIsMasterOn(false);
-                    speakWithVoice('Rider OFF', selectedGender);
-                  }
-                  setShowRightPanel(false);
-                }}
+                onClick={() => setShowRightPanel(false)}
                 className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[10px] font-semibold transition border border-white/20 cursor-pointer"
               >
                 Done
@@ -1312,7 +826,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Android System Style Notification Permission Dialog */}
+      {/* Permission Dialog */}
       {pendingPermissionApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
           <div className="bg-slate-900/95 border border-white/20 rounded-3xl p-6 max-w-xs w-full shadow-2xl backdrop-blur-xl text-white space-y-4">
@@ -1324,7 +838,7 @@ export default function App() {
                 Allow notification access?
               </h3>
               <p className="text-[11px] text-white/70 leading-relaxed">
-                Allow <span className="font-semibold text-white">NotifyVoice AI</span> to read incoming notifications from <span className="font-semibold text-blue-300">{pendingPermissionApp}</span> and translate them aloud in English?
+                Allow <span className="font-semibold text-white">NotifyVoice AI</span> to read incoming notifications from <span className="font-semibold text-blue-300">{pendingPermissionApp}</span>?
               </p>
             </div>
 
@@ -1337,64 +851,10 @@ export default function App() {
                 Allow
               </button>
               <button
-                onClick={handleDenyPermission}
+                onClick={() => setPendingPermissionApp(null)}
                 className="w-full py-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white rounded-xl text-xs font-medium transition cursor-pointer"
               >
                 Don't allow
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Test / Send Notification Modal */}
-      {showTestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900/90 border border-white/20 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl backdrop-blur-xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-bold flex items-center gap-2 text-blue-300">
-                <BellRing className="w-4 h-4" />
-                Simulate Incoming Notification
-              </h3>
-              <button onClick={() => setShowTestModal(false)} className="text-white/70 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-white/70 block mb-1">Choose App</label>
-                <select
-                  value={testApp}
-                  onChange={(e) => setTestApp(e.target.value)}
-                  className="w-full bg-black/40 border border-white/20 rounded-xl p-2.5 text-white focus:outline-none"
-                >
-                  {Object.keys(appToggles).map(app => (
-                    <option key={app} value={app} className="bg-slate-900">
-                      {app} ({appToggles[app].isOn ? 'Announcer ON' : 'Muted OFF'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-white/70 block mb-1">Notification Message (Marathi / Hindi / English)</label>
-                <textarea
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
-                  rows={3}
-                  className="w-full bg-black/40 border border-white/20 rounded-xl p-2.5 text-white focus:outline-none resize-none placeholder:text-white/40"
-                  placeholder="Type notification text..."
-                />
-              </div>
-
-              <button
-                onClick={() => handleProcessNotification(testApp, testMessage)}
-                disabled={isProcessing}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
-              >
-                {isProcessing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                Trigger & Read Aloud in English
               </button>
             </div>
           </div>
