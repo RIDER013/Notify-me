@@ -19,6 +19,7 @@ export interface IncomingCallEvent {
 }
 
 export interface NotifyVoiceBridgePluginInterface {
+  requestAllPermissions(): Promise<void>;
   isNotificationListenerEnabled(): Promise<{ enabled: boolean }>;
   openNotificationListenerSettings(): Promise<void>;
   acceptCall(): Promise<void>;

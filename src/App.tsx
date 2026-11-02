@@ -140,6 +140,7 @@ export default function App() {
 
   const [isMasterOn, setIsMasterOn] = useState(true);
   const [pendingPermissionApp, setPendingPermissionApp] = useState<string | null>(null);
+  const [showNotificationAccessModal, setShowNotificationAccessModal] = useState(false);
 
   const [selectedGender, setSelectedGender] = useState<'female' | 'male'>('female');
   const [maleVoiceIndex, setMaleVoiceIndex] = useState(0);
@@ -196,6 +197,22 @@ export default function App() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = updateVoices;
     }
+  }, []);
+
+  useEffect(() => {
+    // Automatically request native Android runtime permissions on app launch
+    try {
+      NotifyVoiceBridge.requestAllPermissions().catch(() => {});
+    } catch {}
+
+    // Check if Notification Listener Access is enabled
+    try {
+      NotifyVoiceBridge.isNotificationListenerEnabled().then(res => {
+        if (res && !res.enabled) {
+          setShowNotificationAccessModal(true);
+        }
+      }).catch(() => {});
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -900,6 +917,46 @@ export default function App() {
                 className="w-full py-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white rounded-xl text-xs font-medium transition cursor-pointer"
               >
                 Don't allow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Access Settings Modal */}
+      {showNotificationAccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-900/95 border border-white/20 rounded-3xl p-6 max-w-xs w-full shadow-2xl backdrop-blur-xl text-white space-y-4 text-center">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shadow-lg text-emerald-300">
+                <BellRing className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-white">
+                Enable Notification Access
+              </h3>
+              <p className="text-[11px] text-white/70 leading-relaxed">
+                To read incoming messages from WhatsApp, SMS, and other apps aloud, please grant Notification Listener Access.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+              <button
+                onClick={() => {
+                  try {
+                    NotifyVoiceBridge.openNotificationListenerSettings();
+                  } catch {}
+                  setShowNotificationAccessModal(false);
+                }}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                Enable Notification Access
+              </button>
+              <button
+                onClick={() => setShowNotificationAccessModal(false)}
+                className="w-full py-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white rounded-xl text-xs font-medium transition cursor-pointer"
+              >
+                Later
               </button>
             </div>
           </div>

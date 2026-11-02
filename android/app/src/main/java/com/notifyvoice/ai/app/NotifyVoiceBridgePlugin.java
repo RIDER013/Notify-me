@@ -19,7 +19,7 @@ import android.util.Log;
     name = "NotifyVoiceBridge",
     permissions = {
         @Permission(strings = { Manifest.permission.RECORD_AUDIO }, alias = "microphone"),
-        @Permission(strings = { Manifest.permission.READ_PHONE_STATE }, alias = "phoneState"),
+        @Permission(strings = { Manifest.permission.READ_PHONE_STATE, Manifest.permission.ANSWER_PHONE_CALLS }, alias = "phoneState"),
         @Permission(strings = { Manifest.permission.READ_CONTACTS }, alias = "contacts")
     }
 )
@@ -75,6 +75,16 @@ public class NotifyVoiceBridgePlugin extends Plugin {
             ret.put("state", "ended");
             instance.notifyListeners("callEnded", ret);
             Log.d(TAG, "Emitted callEnded to Web");
+        }
+    }
+
+    @PluginMethod
+    public void requestAllPermissions(PluginCall call) {
+        try {
+            requestAllPermissions(call);
+        } catch (Exception e) {
+            Log.e(TAG, "Error requesting permissions: " + e.getMessage());
+            call.resolve();
         }
     }
 
